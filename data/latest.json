@@ -1,5 +1,5 @@
 {
-  "checked_at": 1789807175,
+  "checked_at": 1789807242,
   "accounts": {
     "pieseu.official": {
       "nickname": "Pieseu",
@@ -7,11 +7,11 @@
       "likes": 4236,
       "videos": 7
     },
-    "psiapsi": {
-      "nickname": "Psiapsi",
-      "followers": 150,
-      "likes": 61,
-      "videos": 4
+    "psiapsi_pl": {
+      "nickname": "psiapsi",
+      "followers": 1255,
+      "likes": 23844,
+      "videos": 100
     }
   }
 }

@@ -10,7 +10,7 @@ import time
 import urllib.request
 from pathlib import Path
 
-ACCOUNTS = ["pieseu.official", "psiapsi"]
+ACCOUNTS = ["pieseu.official", "psiapsi_pl"]
 DATA = Path(__file__).resolve().parent.parent / "data"
 UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/128.0 Safari/537.36")
