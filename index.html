@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Licznik TikTok</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e0f13; --card: #181a20; --line: #2a2d36; --text: #f2f3f5; --muted: #8b90a0;
+    --us: #25f4ee; --them: #fe2c55; --up: #3ddc84; --down: #ff6b6b;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: Inter, system-ui, sans-serif; }
+  main { max-width: 960px; margin: 0 auto; padding: 32px 16px 48px; }
+  header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 24px; }
+  h1 { font-size: 22px; margin: 0; font-weight: 800; }
+  .status { color: var(--muted); font-size: 13px; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--up); margin-right: 6px; animation: pulse 2s infinite; }
+  @keyframes pulse { 50% { opacity: .3; } }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 24px; }
+  .acc { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .acc a { color: var(--text); text-decoration: none; font-weight: 700; }
+  .acc a:hover { text-decoration: underline; }
+  .tag { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; padding: 4px 8px; border-radius: 99px; }
+  .us .tag { background: rgba(37,244,238,.12); color: var(--us); }
+  .them .tag { background: rgba(254,44,85,.12); color: var(--them); }
+  .num { font-size: clamp(48px, 9vw, 72px); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+  .us .num { color: var(--us); } .them .num { color: var(--them); }
+  .label { color: var(--muted); font-size: 13px; margin-top: 6px; }
+  .delta { font-size: 14px; font-weight: 600; margin-top: 14px; }
+  .delta.pos { color: var(--up); } .delta.neg { color: var(--down); } .delta.zero { color: var(--muted); }
+  .meta { display: flex; gap: 20px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+  .meta b { color: var(--text); font-weight: 600; }
+  .gap { margin-top: 16px; text-align: center; font-size: 15px; }
+  .gap b { font-size: 22px; }
+  .chart { margin-top: 16px; }
+  .chart h2 { font-size: 15px; margin: 0 0 12px; font-weight: 700; }
+  svg { width: 100%; height: auto; display: block; }
+  .legend { display: flex; gap: 16px; font-size: 13px; color: var(--muted); margin-top: 8px; }
+  .legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; background: currentColor; }
+  .empty { color: var(--muted); font-size: 14px; padding: 40px 0; text-align: center; }
+  footer { color: var(--muted); font-size: 12px; margin-top: 24px; text-align: center; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Licznik obserwujących TikTok</h1>
+    <div class="status"><span class="dot"></span><span id="status">ładowanie...</span></div>
+  </header>
+
+  <div class="grid">
+    <section class="card us" id="c-pieseu.official"></section>
+    <section class="card them" id="c-psiapsi"></section>
+  </div>
+
+  <div class="card gap" id="gap"></div>
+
+  <div class="card chart">
+    <h2>Historia obserwujących</h2>
+    <div id="chart"></div>
+    <div class="legend"><span style="color:var(--us)">pieseu.official</span><span style="color:var(--them)">psiapsi</span></div>
+  </div>
+
+  <footer>Dane pobierane z publicznych profili TikTok co ok. 10 min. Strona odświeża się sama co minutę.</footer>
+</main>
+
+<script>
+const US = "pieseu.official", THEM = "psiapsi";
+const fmt = n => n.toLocaleString("pl-PL");
+
+function ago(ts) {
+  const s = Math.floor(Date.now() / 1000 - ts);
+  if (s < 60) return "przed chwilą";
+  if (s < 3600) return `${Math.floor(s / 60)} min temu`;
+  if (s < 86400) return `${Math.floor(s / 3600)} h temu`;
+  return new Date(ts * 1000).toLocaleString("pl-PL");
+}
+
+// zmiana w ostatnich 24 h na podstawie historii
+function delta24(history, user, current) {
+  const cutoff = Date.now() / 1000 - 86400;
+  const base = history.find(p => p.t >= cutoff && p[user] != null) || history[history.length - 1];
+  return base ? current - base[user] : 0;
+}
+
+function renderCard(user, a, history, isUs) {
+  const d = delta24(history, user, a.followers);
+  const cls = d > 0 ? "pos" : d < 0 ? "neg" : "zero";
+  document.getElementById("c-" + user).innerHTML = `
+    <div class="acc"><a href="https://www.tiktok.com/@${user}" target="_blank" rel="noopener">@${user}</a>
+      <span class="tag">${isUs ? "my" : "konkurencja"}</span></div>
+    <div class="num">${fmt(a.followers)}</div>
+    <div class="label">obserwujących</div>
+    <div class="delta ${cls}">${d > 0 ? "+" : ""}${fmt(d)} w ostatnich 24 h</div>
+    <div class="meta"><div>Polubienia <b>${fmt(a.likes)}</b></div><div>Filmy <b>${fmt(a.videos)}</b></div></div>`;
+}
+
+function renderChart(history) {
+  const el = document.getElementById("chart");
+  if (history.length < 2) { el.innerHTML = '<div class="empty">Wykres pojawi się po zebraniu kilku pomiarów.</div>'; return; }
+  const W = 900, H = 260, P = { l: 48, r: 12, t: 12, b: 28 };
+  const t0 = history[0].t, t1 = history[history.length - 1].t || t0 + 1;
+  const vals = history.flatMap(p => [p[US], p[THEM]]).filter(v => v != null);
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  const pad = Math.max(2, Math.round((hi - lo) * 0.1)); lo = Math.max(0, lo - pad); hi += pad;
+  const x = t => P.l + (t - t0) / (t1 - t0 || 1) * (W - P.l - P.r);
+  const y = v => H - P.b - (v - lo) / (hi - lo || 1) * (H - P.t - P.b);
+  const line = u => history.filter(p => p[u] != null).map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)},${y(p[u]).toFixed(1)}`).join("");
+  let grid = "";
+  for (let i = 0; i <= 4; i++) {
+    const v = Math.round(lo + (hi - lo) * i / 4), yy = y(v);
+    grid += `<line x1="${P.l}" x2="${W - P.r}" y1="${yy}" y2="${yy}" stroke="#2a2d36"/><text x="${P.l - 8}" y="${yy + 4}" fill="#8b90a0" font-size="11" text-anchor="end">${fmt(v)}</text>`;
+  }
+  const d = t => new Date(t * 1000).toLocaleDateString("pl-PL", { day: "numeric", month: "short" });
+  grid += `<text x="${P.l}" y="${H - 8}" fill="#8b90a0" font-size="11">${d(t0)}</text><text x="${W - P.r}" y="${H - 8}" fill="#8b90a0" font-size="11" text-anchor="end">${d(t1)}</text>`;
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}">${grid}
+    <path d="${line(THEM)}" fill="none" stroke="#fe2c55" stroke-width="2.5" stroke-linejoin="round"/>
+    <path d="${line(US)}" fill="none" stroke="#25f4ee" stroke-width="2.5" stroke-linejoin="round"/></svg>`;
+}
+
+async function load() {
+  try {
+    const bust = "?t=" + Date.now();
+    const [latest, history] = await Promise.all([
+      fetch("data/latest.json" + bust).then(r => r.json()),
+      fetch("data/history.json" + bust).then(r => r.ok ? r.json() : []).catch(() => []),
+    ]);
+    const A = latest.accounts;
+    if (A[US]) renderCard(US, A[US], history, true);
+    if (A[THEM]) renderCard(THEM, A[THEM], history, false);
+    if (A[US] && A[THEM]) {
+      const g = A[US].followers - A[THEM].followers;
+      document.getElementById("gap").innerHTML = g >= 0
+        ? `Prowadzimy o <b style="color:var(--up)">${fmt(g)}</b> obserwujących`
+        : `Tracimy <b style="color:var(--down)">${fmt(-g)}</b> obserwujących do psiapsi`;
+    }
+    renderChart(history);
+    window._checked = latest.checked_at;
+    tick();
+  } catch (e) {
+    document.getElementById("status").textContent = "błąd wczytywania danych";
+  }
+}
+function tick() { if (window._checked) document.getElementById("status").textContent = "zaktualizowano " + ago(window._checked); }
+
+load();
+setInterval(load, 60000);
+setInterval(tick, 15000);
+</script>
+</body>
+</html>
