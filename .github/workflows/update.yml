@@ -1,0 +1,35 @@
+name: Aktualizacja licznika
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python scripts/fetch.py
+      - name: Commit jeśli coś się zmieniło
+        run: |
+          git config user.name "licznik-bot"
+          git config user.email "licznik-bot@users.noreply.github.com"
+          # commit gdy zmieniły się liczby (history.json) albo co najmniej raz na godzinę
+          if ! git diff --quiet data/history.json || [ "$(( $(date +%s) - $(git log -1 --format=%ct -- data/latest.json 2>/dev/null || echo 0) ))" -ge 3600 ]; then
+            git add data
+            git commit -m "Aktualizacja licznika"
+            git push
+          else
+            echo "Bez zmian"
+          fi
