@@ -138,7 +138,7 @@ async function load() {
       const g = A[US].followers - A[THEM].followers;
       document.getElementById("gap").innerHTML = g >= 0
         ? `Prowadzimy o <b style="color:var(--up)">${fmt(g)}</b> obserwujących`
-        : `Za <b style="color:var(--up)">${fmt(-g)}</b> psiapsi zostanie rozjebana`;
+        : `Za <b style="color:var(--up)">${fmt(-g)}</b> obserwujących psiapsi zostanie rozjebana`;
     }
     renderChart(history);
     window._checked = latest.checked_at;
