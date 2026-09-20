@@ -66,11 +66,6 @@
     <div id="chart"></div>
   </div>
 
-  <div class="card chart">
-    <h2>Dystans między kontami</h2>
-    <div id="chart-gap"></div>
-  </div>
-
   <footer>Dane pobierane z publicznych profili TikTok co ok. 5 min (GitHub czasem opóźnia pomiar). Strona odświeża się sama co minutę. Najedź na kropkę, żeby zobaczyć datę i liczbę.</footer>
 </main>
 
@@ -161,8 +156,6 @@ function renderChart(history) {
     { points: them, color: "#fe2c55", label: "psiapsi_pl" },
     { points: us, color: "#25f4ee", label: "pieseu.official" },
   ], 300, "obserwujących");
-  const gap = history.filter(p => p[US] != null && p[THEM] != null).map(p => ({ t: p.t, v: p[THEM] - p[US] }));
-  drawChart("chart-gap", [{ points: gap, color: "#f2f3f5", label: "różnica" }], 220, "obserwujących różnicy");
 }
 
 async function load() {
