@@ -62,9 +62,13 @@
   <div class="card gap" id="gap"></div>
 
   <div class="card chart">
-    <h2>Historia obserwujących</h2>
+    <h2>Obserwujący: obie linie na tej samej skali</h2>
     <div id="chart"></div>
-    <div class="legend"><span style="color:var(--us)">pieseu.official (skala z lewej)</span><span style="color:var(--them)">psiapsi_pl (skala z prawej)</span></div>
+  </div>
+
+  <div class="card chart">
+    <h2>Dystans między kontami</h2>
+    <div id="chart-gap"></div>
   </div>
 
   <footer>Dane pobierane z publicznych profili TikTok co ok. 5 min (GitHub czasem opóźnia pomiar). Strona odświeża się sama co minutę. Najedź na kropkę, żeby zobaczyć datę i liczbę.</footer>
@@ -101,52 +105,64 @@ function renderCard(user, a, history, isUs) {
     <div class="meta"><div>Polubienia <b>${fmt(a.likes)}</b></div><div>Filmy <b>${fmt(a.videos)}</b></div></div>`;
 }
 
-function renderChart(history) {
-  const el = document.getElementById("chart");
-  if (history.length < 2) { el.innerHTML = '<div class="empty">Wykres pojawi się po zebraniu kilku pomiarów.</div>'; return; }
-  const W = 900, H = 280, P = { l: 52, r: 56, t: 14, b: 30 };
-  const t0 = history[0].t, t1 = history[history.length - 1].t || t0 + 1;
-  const x = t => P.l + (t - t0) / (t1 - t0 || 1) * (W - P.l - P.r);
-  const pts = u => history.filter(p => p[u] != null);
+const AX = { l: 56, r: 92, t: 16, b: 30 }, CW = 900;
 
-  // każda seria ma własną skalę, inaczej mniejsze konto byłoby płaską kreską
-  function scale(u) {
-    const v = pts(u).map(p => p[u]);
-    let lo = Math.min(...v), hi = Math.max(...v);
-    const pad = Math.max(1, Math.round((hi - lo) * 0.25 || 2));
-    lo = Math.max(0, lo - pad); hi += pad;
-    return { lo, hi, y: val => H - P.b - (val - lo) / (hi - lo || 1) * (H - P.t - P.b) };
-  }
-  const S = { [US]: scale(US), [THEM]: scale(THEM) };
-  const stamp = t => new Date(t * 1000).toLocaleString("pl-PL", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
-  const line = u => pts(u).map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)},${S[u].y(p[u]).toFixed(1)}`).join("");
-  // kropka na każdym pomiarze, po najechaniu pokazuje datę i liczbę
-  const dots = (u, c) => pts(u).map(p =>
-    `<circle cx="${x(p.t).toFixed(1)}" cy="${S[u].y(p[u]).toFixed(1)}" r="3.5" fill="${c}" stroke="#181a20" stroke-width="1.5"><title>@${u}
-${stamp(p.t)}
-${fmt(p[u])} obserwujących</title></circle>`).join("");
-
-  let g = "";
+function axes(g, lo, hi, t0, t1, H, x, y) {
   for (let i = 0; i <= 4; i++) {
-    const yy = P.t + (H - P.t - P.b) * i / 4;
-    const vU = Math.round(S[US].hi - (S[US].hi - S[US].lo) * i / 4);
-    const vT = Math.round(S[THEM].hi - (S[THEM].hi - S[THEM].lo) * i / 4);
-    g += `<line x1="${P.l}" x2="${W - P.r}" y1="${yy}" y2="${yy}" stroke="#2a2d36"/>` +
-      `<text x="${P.l - 8}" y="${yy + 4}" fill="#25f4ee" font-size="11" text-anchor="end">${fmt(vU)}</text>` +
-      `<text x="${W - P.r + 8}" y="${yy + 4}" fill="#fe2c55" font-size="11">${fmt(vT)}</text>`;
+    const val = Math.round(hi - (hi - lo) * i / 4), yy = AX.t + (H - AX.t - AX.b) * i / 4;
+    g.push(`<line x1="${AX.l}" x2="${CW - AX.r}" y1="${yy}" y2="${yy}" stroke="#2a2d36"/>`,
+      `<text x="${AX.l - 8}" y="${yy + 4}" fill="#8b90a0" font-size="11" text-anchor="end">${fmt(val)}</text>`);
   }
   const span = t1 - t0, step = span > 12 * 86400 ? 2 * 86400 : span > 3 * 86400 ? 86400 : span > 86400 ? 21600 : 10800;
   const lab = t => new Date(t * 1000).toLocaleString("pl-PL", step >= 86400
     ? { day: "numeric", month: "short" } : { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" });
   for (let t = Math.ceil(t0 / step) * step; t <= t1; t += step) {
-    if (x(t) < P.l + 24 || x(t) > W - P.r - 24) continue;
-    g += `<line x1="${x(t).toFixed(1)}" x2="${x(t).toFixed(1)}" y1="${P.t}" y2="${H - P.b}" stroke="#22242c"/>` +
-      `<text x="${x(t).toFixed(1)}" y="${H - 9}" fill="#8b90a0" font-size="11" text-anchor="middle">${lab(t)}</text>`;
+    if (x(t) < AX.l + 26 || x(t) > CW - AX.r - 26) continue;
+    g.push(`<line x1="${x(t).toFixed(1)}" x2="${x(t).toFixed(1)}" y1="${AX.t}" y2="${H - AX.b}" stroke="#22242c"/>`,
+      `<text x="${x(t).toFixed(1)}" y="${H - 9}" fill="#8b90a0" font-size="11" text-anchor="middle">${lab(t)}</text>`);
   }
-  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}">${g}
-    <path d="${line(THEM)}" fill="none" stroke="#fe2c55" stroke-width="2.5" stroke-linejoin="round"/>
-    <path d="${line(US)}" fill="none" stroke="#25f4ee" stroke-width="2.5" stroke-linejoin="round"/>
-    ${dots(THEM, "#fe2c55")}${dots(US, "#25f4ee")}</svg>`;
+}
+
+const stamp = t => new Date(t * 1000).toLocaleString("pl-PL", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+
+// jeden wykres, dowolna liczba serii, wspólna skala pionowa
+function drawChart(elId, series, H, unit) {
+  const el = document.getElementById(elId);
+  if (series.every(s => s.points.length < 2)) {
+    el.innerHTML = '<div class="empty">Wykres pojawi się po zebraniu kilku pomiarów.</div>'; return;
+  }
+  const all = series.flatMap(s => s.points);
+  const t0 = Math.min(...all.map(p => p.t)), t1 = Math.max(...all.map(p => p.t)) || t0 + 1;
+  const vals = all.map(p => p.v);
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  const pad = Math.max(2, Math.round((hi - lo) * 0.12 || 3));
+  lo = Math.max(0, lo - pad); hi += pad;
+  const x = t => AX.l + (t - t0) / (t1 - t0 || 1) * (CW - AX.l - AX.r);
+  const y = v => H - AX.b - (v - lo) / (hi - lo || 1) * (H - AX.t - AX.b);
+
+  const g = [];
+  axes(g, lo, hi, t0, t1, H, x, y);
+  for (const s of series) {
+    const pts = s.points;
+    g.push(`<path d="${pts.map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)},${y(p.v).toFixed(1)}`).join("")}" fill="none" stroke="${s.color}" stroke-width="2.5" stroke-linejoin="round"/>`);
+    g.push(...pts.map(p => `<circle cx="${x(p.t).toFixed(1)}" cy="${y(p.v).toFixed(1)}" r="3.5" fill="${s.color}" stroke="#181a20" stroke-width="1.5"><title>${s.label}\n${stamp(p.t)}\n${fmt(p.v)} ${unit}</title></circle>`));
+    // podpis na końcu linii, żeby nie było wątpliwości która jest która
+    const last = pts[pts.length - 1];
+    g.push(`<text x="${(CW - AX.r + 10).toFixed(1)}" y="${(y(last.v) - 2).toFixed(1)}" fill="${s.color}" font-size="12" font-weight="700">${fmt(last.v)}</text>`,
+      `<text x="${(CW - AX.r + 10).toFixed(1)}" y="${(y(last.v) + 12).toFixed(1)}" fill="#8b90a0" font-size="10">${s.label}</text>`);
+  }
+  el.innerHTML = `<svg viewBox="0 0 ${CW} ${H}">${g.join("")}</svg>`;
+}
+
+function renderChart(history) {
+  const us = history.filter(p => p[US] != null).map(p => ({ t: p.t, v: p[US] }));
+  const them = history.filter(p => p[THEM] != null).map(p => ({ t: p.t, v: p[THEM] }));
+  drawChart("chart", [
+    { points: them, color: "#fe2c55", label: "psiapsi_pl" },
+    { points: us, color: "#25f4ee", label: "pieseu.official" },
+  ], 300, "obserwujących");
+  const gap = history.filter(p => p[US] != null && p[THEM] != null).map(p => ({ t: p.t, v: p[THEM] - p[US] }));
+  drawChart("chart-gap", [{ points: gap, color: "#f2f3f5", label: "różnica" }], 220, "obserwujących różnicy");
 }
 
 async function load() {
