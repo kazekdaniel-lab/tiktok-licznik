@@ -66,7 +66,7 @@
     <div id="chart"></div>
   </div>
 
-  <footer>Dane pobierane z publicznych profili TikTok co ok. 5 min (GitHub czasem opóźnia pomiar). Strona odświeża się sama co minutę. Najedź na kropkę, żeby zobaczyć datę i liczbę.</footer>
+  <footer>Przerywana linia przed 19.09 to odczyt z wykresu TikTok Studio (dokładność ok. ±5 obserwujących), reszta to własne pomiary. Dane pobierane z publicznych profili TikTok co ok. 5 min (GitHub czasem opóźnia pomiar). Strona odświeża się sama co minutę. Najedź na kropkę, żeby zobaczyć datę i liczbę.</footer>
 </main>
 
 <script>
@@ -139,31 +139,35 @@ function drawChart(elId, series, H, unit) {
   axes(g, lo, hi, t0, t1, H, x, y);
   for (const s of series) {
     const pts = s.points;
-    g.push(`<path d="${pts.map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)},${y(p.v).toFixed(1)}`).join("")}" fill="none" stroke="${s.color}" stroke-width="2.5" stroke-linejoin="round"/>`);
-    g.push(...pts.map(p => `<circle cx="${x(p.t).toFixed(1)}" cy="${y(p.v).toFixed(1)}" r="3.5" fill="${s.color}" stroke="#181a20" stroke-width="1.5"><title>${s.label}\n${stamp(p.t)}\n${fmt(p.v)} ${unit}</title></circle>`));
+    g.push(`<path d="${pts.map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)},${y(p.v).toFixed(1)}`).join("")}" fill="none" stroke="${s.color}" stroke-width="2.5" stroke-linejoin="round"${s.dash ? ` stroke-dasharray="6 5" opacity="0.75"` : ""}/>`);
+    g.push(...pts.map(p => `<circle cx="${x(p.t).toFixed(1)}" cy="${y(p.v).toFixed(1)}" r="3.5" fill="${s.dash ? "#181a20" : s.color}" stroke="${s.dash ? s.color : "#181a20"}" stroke-width="1.5"><title>${s.label}\n${stamp(p.t)}\n${fmt(p.v)} ${unit}${s.dash ? " (szacowane z TikTok Studio)" : ""}</title></circle>`));
     // podpis na końcu linii, żeby nie było wątpliwości która jest która
     const last = pts[pts.length - 1];
+    if (s.dash) continue;
     g.push(`<text x="${(CW - AX.r + 10).toFixed(1)}" y="${(y(last.v) - 2).toFixed(1)}" fill="${s.color}" font-size="12" font-weight="700">${fmt(last.v)}</text>`,
       `<text x="${(CW - AX.r + 10).toFixed(1)}" y="${(y(last.v) + 12).toFixed(1)}" fill="#8b90a0" font-size="10">${s.label}</text>`);
   }
   el.innerHTML = `<svg viewBox="0 0 ${CW} ${H}">${g.join("")}</svg>`;
 }
 
-function renderChart(history) {
+function renderChart(history, seed) {
   const us = history.filter(p => p[US] != null).map(p => ({ t: p.t, v: p[US] }));
   const them = history.filter(p => p[THEM] != null).map(p => ({ t: p.t, v: p[THEM] }));
-  drawChart("chart", [
-    { points: them, color: "#fe2c55", label: "psiapsi_pl" },
-    { points: us, color: "#25f4ee", label: "pieseu.official" },
-  ], 300, "obserwujących");
+  // dane sprzed startu pomiarów: odczyt z wykresu TikTok Studio, rysowane przerywaną linią
+  const est = (seed || []).filter(p => p[US] != null).map(p => ({ t: p.t, v: p[US] }));
+  const series = [{ points: them, color: "#fe2c55", label: "psiapsi_pl" }];
+  if (est.length) series.push({ points: est.concat(us.slice(0, 1)), color: "#25f4ee", label: "pieseu.official", dash: true });
+  series.push({ points: us, color: "#25f4ee", label: "pieseu.official" });
+  drawChart("chart", series, 300, "obserwujących");
 }
 
 async function load() {
   try {
     const bust = "?t=" + Date.now();
-    const [latest, history] = await Promise.all([
+    const [latest, history, seed] = await Promise.all([
       fetch("data/latest.json" + bust).then(r => r.json()),
       fetch("data/history.json" + bust).then(r => r.ok ? r.json() : []).catch(() => []),
+      fetch("data/seed.json" + bust).then(r => r.ok ? r.json() : []).catch(() => []),
     ]);
     const A = latest.accounts;
     if (A[US]) renderCard(US, A[US], history, true);
@@ -174,7 +178,7 @@ async function load() {
         ? `Prowadzimy o <b style="color:var(--up)">${fmt(g)}</b> obserwujących`
         : `Za <b style="color:var(--up)">${fmt(-g)}</b> obserwujących psiapsi zostanie rozjebana`;
     }
-    renderChart(history);
+    renderChart(history, seed);
     window._checked = latest.checked_at;
     tick();
   } catch (e) {
